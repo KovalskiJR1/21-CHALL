@@ -1,75 +1,76 @@
-/// DAY 7: Unit Tests for Habit Tracker
-///
-/// Today you will:
-/// 1. Learn how to write tests in Move
-/// 2. Write tests for your habit tracker
-/// 3. Use assert! macro
-///
-/// Note: You can copy code from day_06/sources/solution.move if needed
-
-module challenge::day_07 {
+module 0x0::day_07 {
     use std::vector;
-    use std::string::{Self, String};
+    use std::string;
 
-    // Copy from day_06: Habit struct with String
+    /// Single habit
     public struct Habit has copy, drop {
-        name: String,
+        name: string::String,
         completed: bool,
     }
 
+    /// List of habits
     public struct HabitList has drop {
         habits: vector<Habit>,
     }
 
-    public fun new_habit(name: String): Habit {
+    /// Create empty habit list
+    public fun empty_list(): HabitList {
+        HabitList {
+            habits: vector::empty<Habit>(),
+        }
+    }
+
+    /// Create a new habit using String
+    public fun new_habit(name: string::String): Habit {
         Habit {
             name,
             completed: false,
         }
     }
 
+    /// Helper: create habit from bytes
     public fun make_habit(name_bytes: vector<u8>): Habit {
         let name = string::utf8(name_bytes);
         new_habit(name)
     }
 
-    public fun empty_list(): HabitList {
-        HabitList {
-            habits: vector::empty(),
-        }
-    }
-
+    /// Add habit to list
     public fun add_habit(list: &mut HabitList, habit: Habit) {
         vector::push_back(&mut list.habits, habit);
     }
 
+    /// Mark habit as completed
     public fun complete_habit(list: &mut HabitList, index: u64) {
-        let len = vector::length(&list.habits);
-        if (index < len) {
-            let habit = vector::borrow_mut(&mut list.habits, index);
-            habit.completed = true;
-        }
+        let habit_ref = vector::borrow_mut(&mut list.habits, index);
+        habit_ref.completed = true;
     }
 
-    // Note: assert! is a built-in macro in Move 2024 - no import needed!
+    /// ---------- TESTS ----------
 
-    // TODO: Write a test 'test_add_habits' that:
-    // - Creates an empty list
-    // - Adds 1-2 habits
-    // - Checks that the list length is correct
-    // #[test]
-    // fun test_add_habits() {
-    //     // Your code here
-    //     // Use b"Exercise".to_string() to create a String
-    // }
+    #[test]
+    fun test_add_habits_to_list() {
+        let mut list = empty_list();
 
-    // TODO: Write a test 'test_complete_habit' that:
-    // - Creates a list and adds a habit
-    // - Completes the habit
-    // - Checks that completed == true
-    // #[test]
-    // fun test_complete_habit() {
-    //     // Your code here
-    // }
+        let habit1 = make_habit(b"Drink Water");
+        let habit2 = make_habit(b"Read Book");
+
+        add_habit(&mut list, habit1);
+        add_habit(&mut list, habit2);
+
+        let len = vector::length(&list.habits);
+        assert!(len == 2);
+    }
+
+    #[test]
+    fun test_complete_habit() {
+        let mut list = empty_list();
+
+        let habit = make_habit(b"Exercise");
+        add_habit(&mut list, habit);
+
+        complete_habit(&mut list, 0);
+
+        let habit_ref = vector::borrow(&list.habits, 0);
+        assert!(habit_ref.completed == true);
+    }
 }
-
