@@ -24,3 +24,30 @@ module challenge::day_08 {
     // }
 }
 
+module 0x0::day_08 {
+    
+
+    /// A simple task in the bounty board
+    public struct Task has copy, drop {
+        title: string::String,
+        reward: u64,
+        done: bool,
+    }
+
+    /// Create a new task
+    public fun new_task(title: string::String, reward: u64): Task {
+        Task {
+            title,
+            reward,
+            done: false,
+        }
+    }
+
+    #[test]
+    fun test_new_task() {
+        let task = new_task(string::utf8(b"Fix bug"), 100);
+
+        assert!(task.done == false);
+        assert!(task.reward == 100);
+    }
+}
