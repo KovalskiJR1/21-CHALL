@@ -1,40 +1,61 @@
-/// DAY 9: Enums & TaskStatus
-/// 
-/// Today you will:
-/// 1. Learn about enums
-/// 2. Replace bool with an enum
-/// 3. Use match expressions
-
 module challenge::day_09 {
     use std::string::String;
 
-    // Copy Task struct from day_08, but we'll update it
+    /// Görev durumlarını temsil eden Enum yapısı
+    public enum TaskStatus has copy, drop, store {
+        Open,
+        Completed
+    }
 
-    // TODO: Define an enum called 'TaskStatus' with two variants:
-    // - Open
-    // - Completed
-    // Add 'copy' and 'drop' abilities
-    // public enum TaskStatus has copy, drop {
-    //     Open,
-    //     Completed,
-    // }
+    /// Görev yapısı
+    public struct Task has copy, drop, store {
+        id: u64,
+        description: String,
+        status: TaskStatus,
+    }
 
-    // TODO: Update Task struct to use TaskStatus instead of done: bool
-    // public struct Task has copy, drop {
-    //     title: String,
-    //     reward: u64,
-    //     status: TaskStatus,  // Changed from done: bool
-    // }
+    /// Yeni bir görev oluşturur (Başlangıçta 'Open' durumundadır)
+    public fun new_task(id: u64, description: String): Task {
+        Task {
+            id,
+            description,
+            status: TaskStatus::Open,
+        }
+    }
 
-    // TODO: Update new_task to set status = TaskStatus::Open
-    // public fun new_task(title: String, reward: u64): Task {
-    //     // Your code here
-    // }
+    /// Görevin durumunun 'Open' olup olmadığını kontrol eder
+    public fun is_open(task: &Task): bool {
+        match (task.status) {
+            TaskStatus::Open => true,
+            _ => false,
+        }
+    }
 
-    // TODO: Write a function 'is_open' that checks if task.status == TaskStatus::Open
-    // public fun is_open(task: &Task): bool {
-    //     // Your code here
-    //     // Hint: task.status == TaskStatus::Open
-    // }
-}
+    /// Görevi 'Completed' olarak işaretler
+    public fun complete_task(task: &mut Task) {
+        task.status = TaskStatus::Completed;
+    }
 
+    // --- Unit Testler ---
+
+    #[test]
+    fun test_task_status() {
+        let description = std::string::utf8(b"Enum ogren");
+        let mut task = new_task(1, description);
+        
+        // Başlangıçta Open olmalı
+        assert!(is_open(&task), 0);
+        
+        // Tamamlandığında status güncellenmeli
+        complete_task(&mut task);
+        
+        // Durum artık Open olmamalı
+        assert!(!is_open(&task), 1);
+        
+        // Match ile doğrulama
+        match (task.status) {
+            TaskStatus::Completed => (), // Başarılı
+            _ => abort 2, 
+        };
+    }
+} 
