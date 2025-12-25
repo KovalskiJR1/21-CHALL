@@ -1,51 +1,61 @@
-/// DAY 10: Visibility Modifiers (Public vs Private Functions)
-/// 
-/// Today you will:
-/// 1. Learn about visibility modifiers (public vs private)
-/// 2. Design a public API
-/// 3. Write a function to complete tasks
-///
-/// Note: You can copy code from day_09/sources/solution.move if needed
-
 module challenge::day_10 {
     use std::string::String;
 
-    // Copy from day_09: TaskStatus enum and Task struct
-    public enum TaskStatus has copy, drop {
+    /// Task durumları
+    public enum TaskStatus has copy, drop , store {
         Open,
         Completed,
     }
-
-    public struct Task has copy, drop {
-        title: String,
-        reward: u64,
+    /// Task yapısı
+    public struct Task has copy, drop , store {
+        id: u64,
+        description: String,
         status: TaskStatus,
     }
-
-    public fun new_task(title: String, reward: u64): Task {
+     /// Yeni task oluşturur
+    public fun new_task(id: u64, description: String): Task {
         Task {
-            title,
-            reward,
+            id,
+            description,
             status: TaskStatus::Open,
         }
     }
-
-    public fun is_open(task: &Task): bool {
-        task.status == TaskStatus::Open
+    /// PUBLIC API
+    /// Dışarıdan çağrılabilen fonksiyon
+    public fun complete_task(task: &mut Task){
+        set_completed(task);
+    }
+     /// PRIVATE helper
+    /// Sadece bu modül içinde kullanılır
+    fun set_completed(task: &mut Task) {
+        task.status = TaskStatus::Completed;
     }
 
-    // TODO: Write a public function 'complete_task' that:
-    // - Takes task: &mut Task
-    // - Sets task.status = TaskStatus::Completed
-    // This should be public so users can call it
-    // public fun complete_task(task: &mut Task) {
-    //     // Your code here
-    // }
+    /// Task açık mı?
+    public fun is_open(task: &Task): bool {
+        match (task.status) {
+            TaskStatus::Open => true,
+            TaskStatus::Completed => false,
+        }
+    }
 
-    // TODO: (Optional) Write a private helper function
-    // Private functions use 'fun' instead of 'public fun'
-    // They can only be called from within the same module
-    // BONUS: Add a public function that calls your private helper
-    //        (e.g. 'has_valid_reward' that internally calls 'internal_helper')
+    // ----------------
+    // Unit Test
+    // ----------------
+    #[test]
+    fun test_visibility_and_api() {
+        let description = std::string::utf8(b"Visibility ogren");
+        let mut task = new_task(1, description);
+
+        // Başlangıçta açık olmalı
+        assert!(is_open(&task), 0);
+
+        // Public API ile tamamla
+        complete_task(&mut task);
+
+        // Artık açık olmamalı
+        assert!(!is_open(&task), 1);
+    }
 }
+
 
