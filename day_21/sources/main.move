@@ -7,126 +7,377 @@
 ///
 /// Note: You can copy code from day_20/sources/solution.move if needed
 
-module challenge::day_21 {
+module challenge::farm_simulator {
+    use sui::object::{Self, UID};
+    use sui::tx_context::TxContext;
+    use sui::transfer;
     use sui::event;
-
-    // Note: test_scenario is available in Sui framework for testing
-    // You'll need to import it when writing tests: use sui::test_scenario;
-
-    // Copy from day_20: All structs and functions
     
+    // Constants
+    const MIN_PLOT_ID: u8 = 1;
+    const MAX_PLOT_ID: u8 = 20;
     const MAX_PLOTS: u64 = 20;
-    const E_PLOT_NOT_FOUND: u64 = 1;
-    const E_PLOT_LIMIT_EXCEEDED: u64 = 2;
-    const E_INVALID_PLOT_ID: u64 = 3;
-    const E_PLOT_ALREADY_EXISTS: u64 = 4;
     
-
+    // Error codes
+    const E_INVALID_PLOT_ID: u64 = 0;
+    const E_PLOT_ALREADY_EXISTS: u64 = 1;
+    const E_PLOT_LIMIT_EXCEEDED: u64 = 2;
+    const E_PLOT_NOT_FOUND: u64 = 3;
+    
+    // Events
+    public struct PlantEvent has copy, drop {
+        planted_after: u64,
+    }
+    
+    // Structs
     public struct FarmCounters has copy, drop, store {
         planted: u64,
         harvested: u64,
         plots: vector<u8>,
     }
-
-    fun new_counters(): FarmCounters {
+    
+    public struct Farm has key {
+        id: UID,
+        counters: FarmCounters,
+    }
+    
+    // Entry functions
+    entry fun create_farm(ctx: &mut TxContext) {
+        let farm = new_farm(ctx);
+        transfer::share_object(farm);
+    }
+    
+    entry fun plant_on_farm_entry(farm: &mut Farm, plotId: u8) {
+        plant_on_farm(farm, plotId);
+        let planted_count = total_planted(farm);
+        event::emit(PlantEvent { planted_after: planted_count });
+    }
+    
+    entry fun harvest_from_farm_entry(farm: &mut Farm, plotId: u8) {
+        harvest_from_farm(farm, plotId);
+    }
+    
+    // Query functions
+    public fun total_planted(farm: &Farm): u64 {
+        farm.counters.planted
+    }
+    
+    public fun total_harvested(farm: &Farm): u64 {
+        farm.counters.harvested
+    }
+    
+    // Helper functions
+    public fun plant_on_farm(farm: &mut Farm, plotId: u8) {
+        plant(&mut farm.counters, plotId);
+    }
+    
+    public fun harvest_from_farm(farm: &mut Farm, plotId: u8) {
+        harvest(&mut farm.counters, plotId);
+    }
+    
+    public fun new_counters(): FarmCounters {
         FarmCounters {
             planted: 0,
             harvested: 0,
             plots: vector::empty(),
         }
     }
-
-    fun plant(counters: &mut FarmCounters, plotId: u8) {
-        // Check if plotId is valid (between 1 and 20)
-        assert!(plotId >= 1 && plotId <= (MAX_PLOTS as u8), E_INVALID_PLOT_ID);
-        
-        // Check if we've reached the plot limit
-        let len = vector::length(&counters.plots);
-        assert!(len < MAX_PLOTS, E_PLOT_LIMIT_EXCEEDED);
-        
-        // Check if plot already exists in the vector
-        let mut i = 0;
-        while (i < len) {
-            let existing_plot = vector::borrow(&counters.plots, i);
-            assert!(*existing_plot != plotId, E_PLOT_ALREADY_EXISTS);
-            i = i + 1;
-        };
-        
-        counters.planted = counters.planted + 1;
-        vector::push_back(&mut counters.plots, plotId);
-    }
-
-    fun harvest(counters: &mut FarmCounters, plotId: u8) {
-        let len = vector::length(&counters.plots);
-                
-        // Check if plot exists in the vector and find its index
-        let mut i = 0;
-        let mut found_index = len; 
-        while (i < len) {
-            let existing_plot = vector::borrow(&counters.plots, i);
-            if (*existing_plot == plotId) {
-                found_index = i;
-            };
-            i = i + 1;
-        };
-        
-        // Assert that plot was found (found_index < len means we found it)
-        assert!(found_index < len, E_PLOT_NOT_FOUND);
-        
-        // Remove the plot from the vector
-        vector::remove(&mut counters.plots, found_index);
-        counters.harvested = counters.harvested + 1;
-    }
-
-    public struct Farm has key {
-        id: UID,
-        counters: FarmCounters,
-    }
-
-    fun new_farm(ctx: &mut TxContext): Farm {
+    
+    public fun new_farm(ctx: &mut TxContext): Farm {
         Farm {
             id: object::new(ctx),
             counters: new_counters(),
         }
     }
-
-    entry fun create_farm(ctx: &mut TxContext) {
-        let farm = new_farm(ctx);
-        transfer::share_object(farm);
+    
+    public fun plant(counters: &mut FarmCounters, plotId: u8) {
+        assert!(plotId >= MIN_PLOT_ID && plotId <= MAX_PLOT_ID, E_INVALID_PLOT_ID);
+        assert!(vector::length(&counters.plots) < MAX_PLOTS, E_PLOT_LIMIT_EXCEEDED);
+        assert!(!vector::contains(&counters.plots, &plotId), E_PLOT_ALREADY_EXISTS);
+        
+        vector::push_back(&mut counters.plots, plotId);
+        counters.planted = counters.planted + 1;
     }
-
-    fun plant_on_farm(farm: &mut Farm, plotId: u8) {
-        plant(&mut farm.counters, plotId);
+    
+    public fun harvest(counters: &mut FarmCounters, plotId: u8) {
+        assert!(plotId >= MIN_PLOT_ID && plotId <= MAX_PLOT_ID, E_INVALID_PLOT_ID);
+        
+        let (exists, index) = vector::index_of(&counters.plots, &plotId);
+        assert!(exists, E_PLOT_NOT_FOUND);
+        
+        vector::remove(&mut counters.plots, index);
+        counters.harvested = counters.harvested + 1;
     }
-
-    fun harvest_from_farm(farm: &mut Farm, plotId: u8) {
-        harvest(&mut farm.counters, plotId);
+    
+    // Test helpers
+    #[test_only]
+    public fun get_planted(counters: &FarmCounters): u64 {
+        counters.planted
     }
-
-    fun total_planted(farm: &Farm): u64 {
-        farm.counters.planted
+    
+    #[test_only]
+    public fun get_harvested(counters: &FarmCounters): u64 {
+        counters.harvested
     }
-
-    // Used in tests (see solution.move)
-    fun total_harvested(farm: &Farm): u64 {
-        farm.counters.harvested
+    
+    #[test_only]
+    public fun get_plot_count(counters: &FarmCounters): u64 {
+        vector::length(&counters.plots)
     }
-
-    public struct PlantEvent has copy, drop {
-        planted_after: u64,
+    
+    #[test_only]
+    public fun is_plot_planted(counters: &FarmCounters, plotId: u8): bool {
+        vector::contains(&counters.plots, &plotId)
     }
-
-    entry fun plant_on_farm_entry(farm: &mut Farm, plotId: u8) {
-        plant_on_farm(farm, plotId);
-        let planted_count = total_planted(farm);
-        event::emit(PlantEvent {
-            planted_after: planted_count,
-        });
+    
+    #[test_only]
+    public fun get_farm_counters(farm: &Farm): &FarmCounters {
+        &farm.counters
     }
-
-    entry fun harvest_from_farm_entry(farm: &mut Farm, plotId: u8) {
-        harvest_from_farm(farm, plotId);
+    
+    #[test_only]
+    public fun destroy_farm_for_testing(farm: Farm) {
+        let Farm { id, counters: _ } = farm;
+        object::delete(id);
     }
+    
+    // Tests
+    #[test_only]
+    use sui::test_scenario;
+    
+    // Test 1: Create farm
+    #[test]
+    fun test_create_farm() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let farm = test_scenario::take_shared<Farm>(scenario);
+            
+            assert!(total_planted(&farm) == 0, 0);
+            assert!(total_harvested(&farm) == 0, 1);
+            
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+    
+    // Test 2: Planting increases counter
+    #[test]
+    fun test_planting_increases_counter() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let mut farm = test_scenario::take_shared<Farm>(scenario);
+            
+            plant_on_farm_entry(&mut farm, 1);
+            assert!(total_planted(&farm) == 1, 0);
+            
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+    
+    // Test 3: Harvesting increases counter
+    #[test]
+    fun test_harvesting_increases_counter() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let mut farm = test_scenario::take_shared<Farm>(scenario);
+            
+            plant_on_farm_entry(&mut farm, 1);
+            harvest_from_farm_entry(&mut farm, 1);
+            
+            assert!(total_planted(&farm) == 1, 0);
+            assert!(total_harvested(&farm) == 1, 1);
+            
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+    
+    // Test 4: Multiple operations
+    #[test]
+    fun test_multiple_operations() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let mut farm = test_scenario::take_shared<Farm>(scenario);
+            
+            plant_on_farm_entry(&mut farm, 3);
+            plant_on_farm_entry(&mut farm, 5);
+            plant_on_farm_entry(&mut farm, 18);
+            harvest_from_farm_entry(&mut farm, 5);
+            
+            assert!(total_planted(&farm) == 3, 0);
+            assert!(total_harvested(&farm) == 1, 1);
+            
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+    
+    // Test 5: Invalid plot ID (0)
+    #[test]
+    #[expected_failure(abort_code = E_INVALID_PLOT_ID)]
+    fun test_invalid_plot_id_zero() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let mut farm = test_scenario::take_shared<Farm>(scenario);
+            plant_on_farm_entry(&mut farm, 0);
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+    
+    // Test 5b: Invalid plot ID (21)
+    #[test]
+    #[expected_failure(abort_code = E_INVALID_PLOT_ID)]
+    fun test_invalid_plot_id_high() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let mut farm = test_scenario::take_shared<Farm>(scenario);
+            plant_on_farm_entry(&mut farm, 21);
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+    
+    // Test 6: Duplicate plot
+    #[test]
+    #[expected_failure(abort_code = E_PLOT_ALREADY_EXISTS)]
+    fun test_duplicate_plot() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let mut farm = test_scenario::take_shared<Farm>(scenario);
+            plant_on_farm_entry(&mut farm, 1);
+            plant_on_farm_entry(&mut farm, 1);
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+    
+    // Test 7: Plot limit
+    #[test]
+    #[expected_failure(abort_code = E_PLOT_LIMIT_EXCEEDED)]
+    fun test_plot_limit() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let mut farm = test_scenario::take_shared<Farm>(scenario);
+            
+            let mut i = 1;
+            while (i <= 20) {
+                plant_on_farm_entry(&mut farm, i);
+                i = i + 1;
+            };
+            
+            plant_on_farm_entry(&mut farm, 1);
+            
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+    
+    // Test 8: Harvest nonexistent plot
+    #[test]
+    #[expected_failure(abort_code = E_PLOT_NOT_FOUND)]
+    fun test_harvest_nonexistent_plot() {
+        let owner = @0xA;
+        let mut scenario_val = test_scenario::begin(owner);
+        let scenario = &mut scenario_val;
+        
+        {
+            let ctx = test_scenario::ctx(scenario);
+            create_farm(ctx);
+        };
+        
+        test_scenario::next_tx(scenario, owner);
+        {
+            let mut farm = test_scenario::take_shared<Farm>(scenario);
+            harvest_from_farm_entry(&mut farm, 1);
+            test_scenario::return_shared(farm);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
+}
+
 
     // TODO: Write comprehensive tests:
     // 
@@ -168,5 +419,5 @@ module challenge::day_21 {
     // Make sure function names are consistent
     // Remove any unnecessary comments
     // Ensure all tests pass
-}
+
 
